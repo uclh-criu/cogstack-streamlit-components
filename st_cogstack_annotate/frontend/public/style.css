@@ -1,0 +1,46 @@
+.st-cogstack-annotate-text {
+    padding: 1rem;
+    background: #ededed;
+    color: #333333;
+}
+
+span.st-cogstack-annotate-entity {
+    position: relative;
+    background: #d3d3d3;
+    padding: 0 0.2rem;
+    margin: 0 .1rem;
+
+    /* Prevent text selection */
+    -webkit-user-select: none; /* Safari */
+    -ms-user-select: none; /* IE 10 and IE 11 */
+    user-select: none; /* Standard syntax */
+}
+
+span.st-cogstack-annotate-entity .close {
+    position: absolute;
+    top: -7px;
+    right: -7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    width: 14px;
+    height: 14px;
+    padding-bottom: 3px;
+    /* padding-right: 1px; */
+    font-size: 9px;
+    line-height: 0;
+    font-weight: bold;
+    color: #555555;
+    background: #AAAAAA;
+    border-radius: 50%;
+    transition: all .1s ease;
+    z-index: 1;
+}
+
+span.st-cogstack-annotate-entity .close:hover {
+    cursor: pointer;
+    color: #333333;
+    background: #888888;
+    box-shadow: 0 0 0px 1px #555555;
+}

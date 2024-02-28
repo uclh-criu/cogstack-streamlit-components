@@ -8,6 +8,7 @@
  */
 const CSS_TEXT = "st-cogstack-annotate-text"      // Main container of the text
 const CSS_ENTITY = "st-cogstack-annotate-entity"  // Each annotation entity
+const CSS_ENTITY_CLOSE = "close"                  // Button to remove entity
 
 /*
  * Constants
@@ -22,6 +23,13 @@ const ENTITY_FORMAT = `<span class="${CSS_ENTITY}">{{<entity-text>}}</span>`
  */
 const _textElem = document.body.appendChild(document.createElement("div"))
 _textElem.classList.add(CSS_TEXT)
+
+const _entityElem = document.createElement("span")
+_entityElem.classList.add(CSS_ENTITY)
+
+const _entityElemClose = document.createElement("div")
+_entityElemClose.classList.add(CSS_ENTITY_CLOSE)
+_entityElemClose.innerHTML = "&#x2715;" //"&#10006;"
 
 
 /*
@@ -66,17 +74,29 @@ function addEntity(start, end, selected_text, label) {
  * Renders text highlighting parts of it based on the given entities.
  **/
 function renderText(text, entities, entity_format = ENTITY_FORMAT) {
-  let buff = ""
+  let buff = document.createElement("div")
   let i = 0
+  let substr = ""
   for (const e of entities) {
-    buff += text.substring(i, e.start)
-    buff += entity_format.replace(
-      "{{<entity-text>}}",
-      text.substring(e.start, e.end),
-    )
+    // Create previous text node
+    substr = text.substring(i, e.start)
+    if (substr.length > 0) {
+      buff.appendChild(document.createTextNode(substr))
+    }
+    // Create entity node
+    const entity = _entityElem.cloneNode()
+    entity.textContent = text.substring(e.start, e.end)
+    const entityClose = _entityElemClose.cloneNode(true)
+    entityClose.onclick = removeEntity
+    entity.appendChild(entityClose)
+    buff.appendChild(entity)
     i = e.end
   }
-  buff += text.substring(i, text.length)
+  // Create last text node
+  substr = text.substring(i, text.length)
+  if (substr.length > 0) {
+    buff.appendChild(document.createTextNode(substr))
+  }
   return buff
 }
 
@@ -141,12 +161,52 @@ _textElem.onmouseup = (event) => {
   const valid = addEntity(start, end, selText, _currentLabel)
 
   // Update display
-  _textElem.innerHTML = renderText(_sourceText, _entities)
+  _textElem.replaceChildren(...renderText(_sourceText, _entities).childNodes)
 
   // Send new value to Streamlit
   if (valid) {
     Streamlit.setComponentValue(_entities)
   }
+}
+
+// Detect click on entity delete button
+function removeEntity(event) {
+  console.debug(event.target)
+  console.debug(event.target.parentNode)
+  const entity = event.target.parentNode
+  // Delete this button
+  event.target.remove()
+  // Replace entity by a simple "text" element with its content
+  // Prefer appending content to a sibling "text" element
+  const previous = entity.previousSibling
+  const next = entity.nextSibling
+  console.debug(previous)
+  console.debug(next)
+  if (previous && previous.type === "text" && next && next.type === "text") {
+    // Merge text elements
+    previous.textContent += ` ${entity.textContent} ${next.textContent}`
+    next.remove()
+  }
+  else if (previous && previous.type === "text") {
+    // Append text to previous sibling
+    previous.textContent += ` ${entity.textContent}`
+  }
+  else if (next && next.type === "text") {
+    // Prepend text to next sibling
+    next.textContent = `${entity.textContent} ${next.textContent}`
+  }
+  else {
+    // Create new text element
+    if (next) {
+      entity.parentNode.insertBefore(
+        document.createTextNode(entity.textContent), next)
+    }
+    else {
+      entity.parentNode.appendChild(
+        document.createTextNode(entity.textContent), next)
+    }
+  }
+  entity.remove();
 }
 
 
@@ -175,7 +235,8 @@ function onRender(event) {
   _entities = Array.from(_origEntities)
 
   // Display text and highlight annotations
-  _textElem.innerHTML = renderText(_sourceText, _origEntities)
+  _textElem.replaceChildren(
+    ...renderText(_sourceText, _origEntities).childNodes)
 
 
   // Maintain compatibility with older versions of Streamlit that don't send
