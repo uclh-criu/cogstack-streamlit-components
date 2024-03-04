@@ -6,14 +6,52 @@
 /*
  * CSS classes used for DOM elements
  */
-const CSS_TEXT = "st-cogstack-annotate-text"      // Main container of the text
-const CSS_ENTITY = "st-cogstack-annotate-entity"  // Each annotation entity
-const CSS_ENTITY_CLOSE = "close"                  // Button to remove entity
+const CSS_TEXT = "st-cogstack-annotate-text"              // Main container of the text
+const CSS_ENTITY = "st-cogstack-annotate-entity"          // Each annotation entity
+const CSS_ENTITY_REMOVE = "remove"                        // Button to remove entity
+const CSS_ENTITY_BADGE = "st-cogstack-annotate-badge"     // Badge to display entity short label
+const CSS_ENTITY_TOOLTIP = "st-cogstack-annotate-tooltip" // Tooltip to display entity label details
 
 /*
- * Constants
+ * Javascript Classes
  */
-const ENTITY_FORMAT = `<span class="${CSS_ENTITY}">{{<entity-text>}}</span>`
+class Entity {
+  /**
+   * Creates a new Entity representing an annotated text in the source text.
+   *
+   * @param {Number} start Start index in source text
+   * @param {Number} end End index in source text
+   * @param {String} label Short label (e.g. concept code)
+   * @param {String} details Details about the entity, long label (e.g. concept code and label)
+   */
+  constructor(start, end, label, details) {
+    this.start = start
+    this.end = end
+    this.label = label
+    // Details is optional. If null, leave undefined to ignore field when converting entities to Streamlit
+    this.details = details ? details : undefined
+  }
+}
+
+
+/*
+ * Component data
+ */
+let _sourceText = ""          // Text to be annotated
+let _currentLabel = ""        // Latest label given, used to annotate entities.
+let _currentLabelDetails = "" // Latest label details given, used to annotate entities.
+let _sourceEntities = null    // Entities existent on startup, not the ones created
+                              // in the current session.
+let _entities = []            // Entities currently annotated. These are tuples of
+                              // (start index, end index, selected text, label)
+
+
+/*
+ * Component theme
+ */
+let _themeBadge = "label"     // Determines which field to display in the badge (see getContentByTheme)
+let _themeTooltip = "details" // Determines which field to display in the tooltip (see getContentByTheme)
+
 
 
 /*
@@ -21,26 +59,25 @@ const ENTITY_FORMAT = `<span class="${CSS_ENTITY}">{{<entity-text>}}</span>`
  *
  * (They could also be defined directly in index.html.)
  */
-const _textElem = document.body.appendChild(document.createElement("div"))
+const _textElem = document.body.appendChild(document.createElement("pre"))
 _textElem.classList.add(CSS_TEXT)
 
 const _entityElem = document.createElement("span")
 _entityElem.classList.add(CSS_ENTITY)
 
-const _entityElemClose = document.createElement("div")
-_entityElemClose.classList.add(CSS_ENTITY_CLOSE)
-_entityElemClose.innerHTML = "&#x2715;" //"&#10006;"
+const _entityElemBadge = document.createElement("span")
+_entityElemBadge.classList.add(CSS_ENTITY_BADGE)
 
+const _entityElemTooltip = document.createElement("div")
+_entityElemTooltip.classList.add(CSS_ENTITY_TOOLTIP)
+_entityElemTooltip.innerHTML = `<div class="inner"></div>`
 
-/*
- * Component data
- */
-let _sourceText = "";     // Text to be annotated
-let _currentLabel = "";   // Latest label given, used to annotate entities.
-let _origEntities = []    // Entities existent on startup, not the ones created
-                          // in the current session.
-let _entities = []        // Entities currently annotated. These are tuples of
-                          // (start index, end index, selected text, label)
+const _entityElemRemove = document.createElement("button")
+_entityElemRemove.classList.add(CSS_ENTITY_REMOVE)
+_entityElemRemove.innerHTML = `<svg height="16" width="16" xmlns="http://www.w3.org/2000/svg">
+  <circle r="50%" cx="50%" cy="50%"></circle>
+  <path d="M5 5 L11 11 M11 5 L5 11"></path>
+</svg>`
 
 
 /*
@@ -48,9 +85,16 @@ let _entities = []        // Entities currently annotated. These are tuples of
  */
 
 /**
- * Add a selection to the list of annotated entities
+ * Add a selection to the list of annotated entities.
+ * Ignores the entity and returns false if the range overlaps existent entities.
+ *
+ * @param {Number} start    Start index in the source text
+ * @param {Number} end      End index in the source text
+ * @param {String} label    Label linked to the entity (e.g. concept code)
+ * @param {String} details  Details about the label (e.g. concept code and description)
+ * @returns true if the entity was added, false otherwise
  */
-function addEntity(start, end, selected_text, label) {
+function addEntity(start, end, label, details) {
   // Check that new entity does not overlap
   for (let i = 0; i < _entities.length; i++) {
     const e = _entities[i];
@@ -58,22 +102,153 @@ function addEntity(start, end, selected_text, label) {
       return false
     }
   }
-  _entities.push({
-    "start": start,
-    "end": end,
-    "text": selected_text,
-    "label": label,
-  })
+  _entities.push(new Entity(
+    start,
+    end,
+    label,
+    details,
+  ))
   _entities.sort((a, b) => a.start - b.start)
-  console.debug(_entities)
   return true
 }
 
+/**
+ * Removes an entity based on its positon in the full text.
+ *
+ * @param {Number} start  Start index in the source text
+ * @param {Number} end    End index in the source text
+ * @returns true if the entity was found and removed, false otherwise
+ */
+function removeEntity(start, end) {
+  let i = _entities.findIndex(e => e.start === start && e.end === end)
+  if (i >= 0) {
+    _entities.splice(i, 1)
+    return true
+  }
+  return false
+}
+
+/**
+ * Helper to determine the content of badge and tooltip.
+ *
+ * @param {String} themeVar Theme variable that determines which field to display
+ * @param {String} label Entity short label
+ * @param {String} details Entity long label with details
+ * @returns Value of "label" or "details", or null if the value of the theme variable is not recognised
+ */
+function getContentByTheme(themeVar, label, details) {
+  switch (themeVar) {
+    case "label":
+      return label
+    case "details":
+      return details
+  }
+  return null
+}
+
+/**
+ * Creates an HTML node to represent the annotated entity.
+ *
+ * @param {Number} start    Start index in the source text
+ * @param {Number} end      End index in the source text
+ * @param {String} label    Short label, displayed by default as badge next to the text (e.g. concept code)
+ * @param {String} details  Long label with details, displayed by default as tooltip text (e.g. concept code and label)
+ * @returns Node representing the entity with its text and label
+ */
+function createEntityNode(start, end, label, details) {
+  const entity = _entityElem.cloneNode()
+  entity.textContent = _sourceText.substring(start, end)
+  // Badge
+  const badge = getContentByTheme(_themeBadge, label, details)
+  if (badge) {
+    const entityBadge = _entityElemBadge.cloneNode()
+    entityBadge.textContent = "" + badge
+    entity.appendChild(entityBadge)
+  }
+  // Tooltip
+  const tooltip = getContentByTheme(_themeTooltip, label, details)
+  if (tooltip) {
+    const entityTooltip = _entityElemTooltip.cloneNode(true)
+    entityTooltip.childNodes[0].textContent = "" + tooltip
+    entity.appendChild(entityTooltip)
+  }
+  // Remove button
+  const entityRemove = _entityElemRemove.cloneNode(true)
+  entityRemove.onclick = event => {
+    removeEntityNode(event)
+    const valid = removeEntity(start, end)
+
+    // Send new value to Streamlit
+    if (valid) {
+      Streamlit.setComponentValue(_entities)
+    }
+  }
+  entity.appendChild(entityRemove)
+  return entity
+}
+
+/**
+ * Handles click on an entity remove button.
+ *
+ * @param {Event} event Click event
+ */
+function removeEntityNode(event) {
+  const entity = event.target.parentNode
+  const entityText = getNodeText(entity)
+  // Replace entity by a simple "text" element with its content
+  // Prefer appending content to a sibling "text" element
+  const previous = entity.previousSibling
+  const next = entity.nextSibling
+  if (previous && previous.nodeType === Node.TEXT_NODE && next && next.nodeType === Node.TEXT_NODE) {
+    // Merge text elements
+    previous.textContent += `${entity.textContent}${next.textContent}`
+    next.remove()
+  }
+  else if (previous && previous.nodeType === Node.TEXT_NODE) {
+    // Append text to previous sibling
+    previous.textContent += `${entityText}`
+  }
+  else if (next && next.nodeType === Node.TEXT_NODE) {
+    // Prepend text to next sibling
+    next.textContent = `${entityText}${next.textContent}`
+  }
+  else {
+    // Create new text element
+    if (next) {
+      entity.parentNode.insertBefore(
+        document.createTextNode(entityText), next)
+    }
+    else {
+      entity.parentNode.appendChild(
+        document.createTextNode(entityText), next)
+    }
+  }
+  entity.remove();
+}
+
+/**
+ * Given a node that composes the full text, return the relevant text content.
+ * If it's a Text node, the value of "textContent" is returned.
+ * Otheriwse, the node must be an entity, so the "textContent" of the first child is returned instead.
+ *
+ * @param {Node} node Node to get text length from
+ * @returns The relevant text inside the node
+ */
+function getNodeText(node) {
+  if (node.nodeType !== Node.TEXT_NODE) {
+    return node.childNodes[0].textContent
+  }
+  return node.textContent
+}
 
 /**
  * Renders text highlighting parts of it based on the given entities.
- **/
-function renderText(text, entities, entity_format = ENTITY_FORMAT) {
+ *
+ * @param {String} text     Source text
+ * @param {Entity[]} entities  Array of annotated entities in the given text
+ * @returns Node with the text as a mix of test nodes and entities with labels
+ */
+function renderText(text, entities) {
   let buff = document.createElement("div")
   let i = 0
   let substr = ""
@@ -84,12 +259,7 @@ function renderText(text, entities, entity_format = ENTITY_FORMAT) {
       buff.appendChild(document.createTextNode(substr))
     }
     // Create entity node
-    const entity = _entityElem.cloneNode()
-    entity.textContent = text.substring(e.start, e.end)
-    const entityClose = _entityElemClose.cloneNode(true)
-    entityClose.onclick = removeEntity
-    entity.appendChild(entityClose)
-    buff.appendChild(entity)
+    buff.appendChild(createEntityNode(e.start, e.end, e.label, e.details))
     i = e.end
   }
   // Create last text node
@@ -111,6 +281,9 @@ function renderText(text, entities, entity_format = ENTITY_FORMAT) {
  *
  * We need to obtain the effective start and end in the entire text by going
  * over all the children, from Range end to start.
+ *
+ * @param {Range} selRange Range of the selection being processed
+ * @returns Start and end indexes calculated in the source text
  */
 function getRealSelectionRange(selRange) {
   // For the start index: From the range starting child, go back to the
@@ -118,7 +291,7 @@ function getRealSelectionRange(selRange) {
   let start = selRange.startOffset
   let sibling = selRange.startContainer
   while ((sibling = sibling.previousSibling) && sibling !== null) {
-    start += sibling.textContent.length
+    start += getNodeText(sibling).length
   }
 
   // For the end index: From the range ending child, go back to the start and
@@ -129,7 +302,7 @@ function getRealSelectionRange(selRange) {
     let sibling = selRange.endContainer
     while ((sibling = sibling.previousSibling)
            && sibling !== selRange.startContainer) {
-      start += sibling.length
+      start += getNodeText(sibling).length
     }
   }
 
@@ -142,23 +315,27 @@ function getRealSelectionRange(selRange) {
  */
 
 // Detect mouse text selection
-_textElem.onmouseup = (event) => {
+_textElem.onmouseup = () => {
   //console.debug(window.getSelection())
   const selObj = window.getSelection()
-  const selText = selObj.toString()
+  let selText = selObj.toString()
+
   // Do not allow overlapping selections
-  if (selText.length <= 0 || selObj.anchorNode !== selObj.extentNode) {
+  if (selText.trim() === "" || selText.length <= 0 || selObj.anchorNode !== selObj.extentNode) {
     return
   }
-  //selObj.removeAllRanges();
 
   const selRange = selObj.getRangeAt(0)
   //console.debug(selRange)
-  const {start, end} = getRealSelectionRange(selRange)
+  let {start, end} = getRealSelectionRange(selRange)
   //console.debug({start, end})
 
+  // Remove spaces at start and end of selection
+  start = start + selText.split("").findIndex(c => c.trim() !== "")
+  end = end - selText.split("").reverse().findIndex(c => c.trim() !== "")
+
   // Add selected entity
-  const valid = addEntity(start, end, selText, _currentLabel)
+  const valid = addEntity(start, end, _currentLabel, _currentLabelDetails)
 
   // Update display
   _textElem.replaceChildren(...renderText(_sourceText, _entities).childNodes)
@@ -169,74 +346,45 @@ _textElem.onmouseup = (event) => {
   }
 }
 
-// Detect click on entity delete button
-function removeEntity(event) {
-  console.debug(event.target)
-  console.debug(event.target.parentNode)
-  const entity = event.target.parentNode
-  // Delete this button
-  event.target.remove()
-  // Replace entity by a simple "text" element with its content
-  // Prefer appending content to a sibling "text" element
-  const previous = entity.previousSibling
-  const next = entity.nextSibling
-  console.debug(previous)
-  console.debug(next)
-  if (previous && previous.type === "text" && next && next.type === "text") {
-    // Merge text elements
-    previous.textContent += ` ${entity.textContent} ${next.textContent}`
-    next.remove()
-  }
-  else if (previous && previous.type === "text") {
-    // Append text to previous sibling
-    previous.textContent += ` ${entity.textContent}`
-  }
-  else if (next && next.type === "text") {
-    // Prepend text to next sibling
-    next.textContent = `${entity.textContent} ${next.textContent}`
-  }
-  else {
-    // Create new text element
-    if (next) {
-      entity.parentNode.insertBefore(
-        document.createTextNode(entity.textContent), next)
-    }
-    else {
-      entity.parentNode.appendChild(
-        document.createTextNode(entity.textContent), next)
-    }
-  }
-  entity.remove();
-}
-
 
 /**
  * The component's render function. This will be called immediately after
  * the component is initially loaded, and then again every time the
  * component gets new data from Python.
+ *
+ * @param {Event} event Render event sent by Streamlit
  */
 function onRender(event) {
   // We might only want to run the render code the first time the component is
   // loaded.
-  if (window.rendered) {
-    return
-  }
-  window.rendered = true;
+  //if (window.rendered) {
+  //  return
+  //}
+  //window.rendered = true;
 
   // Get the RenderData from the event
   const data = event.detail
 
   // RenderData.args is the JSON dictionary of arguments sent from the
   // Python script.
-  let {label, text, ents} = data.args
+  let {label, text, entities} = data.args
   _sourceText = text
   _currentLabel = label;
-  _origEntities = Array.from(ents)
-  _entities = Array.from(_origEntities)
+
+  // Add entities from source data on first render
+  if (_sourceEntities === null) {
+    entities.forEach(e => addEntity(e.start, e.end, e.label, e.details))
+    _sourceEntities = JSON.parse(JSON.stringify(_entities))
+  }
+
+  // Optional component arguments
+  _currentLabelDetails = data.args["label_details"]
+  _themeBadge = data.args["theme_badge_content"]
+  _themeTooltip = data.args["theme_tooltip_content"]
 
   // Display text and highlight annotations
   _textElem.replaceChildren(
-    ...renderText(_sourceText, _origEntities).childNodes)
+    ...renderText(_sourceText, _entities).childNodes)
 
 
   // Maintain compatibility with older versions of Streamlit that don't send

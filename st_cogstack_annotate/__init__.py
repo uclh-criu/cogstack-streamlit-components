@@ -1,7 +1,14 @@
 import os
+from enum import Enum
 
 import streamlit as st
 import streamlit.components.v1 as components
+
+
+class BadgeTooltipField(str, Enum):
+    LABEL = "label"
+    DETAILS = "details"
+
 
 parent_dir = os.path.dirname(os.path.abspath(__file__))
 build_dir = os.path.join(parent_dir, "frontend/public")
@@ -9,19 +16,32 @@ _component_func = components.declare_component(
     "st_cogstack_annotate", path=build_dir)
 
 
-def st_cogstack_annotate(label, text, ents, key=None) -> list[dict]:
+def st_cogstack_annotate(label, text, entities, label_details=None,
+                         theme_badge_content: BadgeTooltipField | None = BadgeTooltipField.LABEL,
+                         theme_tooltip_content: BadgeTooltipField | None = BadgeTooltipField.DETAILS,
+                         key=None) -> list[dict]:
     """st_cogstack_annotate.
 
     Parameters
     ----------
+    label: str
+        Short label used to annotate selected text (e.g. concept code)
     text: str
         Text to render
-    ents: object
+    entities: object
         Entities found in text
     key: str or None
         An optional key that uniquely identifies this component. If this is
         None, and the component's arguments are changed, the component will
         be re-mounted in the Streamlit frontend and lose its current state.
+    label_details: str
+        Label with details used to annotate selected text (e.g. concept code and label)
+    theme_badge_content: str
+        (Default "label") Used to determine which field is displayed as a badge next to the entity. If None, the badge
+        is hidden. Options: None, "label", "details".
+    theme_tooltip_content: str
+        (Default "details") Used to determine which field is displayed as a tooltip when hovering the entity. If None,
+        the tooltip is disabled. Options: None, "label", "details".
 
     Returns
     -------
@@ -31,9 +51,14 @@ def st_cogstack_annotate(label, text, ents, key=None) -> list[dict]:
     component_value = _component_func(
         label=label,
         text=text,
-        ents=ents,
+        entities=entities,
+        # Component's optional parameters
+        label_details=label_details,
+        theme_badge_content=theme_badge_content,
+        theme_tooltip_content=theme_tooltip_content,
+        # Streamlit optional parameters
         key=key,
-        default=ents,
+        default=entities,
     )
     return component_value
 
