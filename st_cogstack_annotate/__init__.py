@@ -2,7 +2,9 @@ import os
 from enum import Enum
 
 import streamlit as st
-import streamlit.components.v1 as components
+from streamlit.runtime.state import WidgetArgs, WidgetCallback, WidgetKwargs
+
+from components import declare_cogstack_component
 
 
 class BadgeTooltipField(str, Enum):
@@ -12,14 +14,18 @@ class BadgeTooltipField(str, Enum):
 
 parent_dir = os.path.dirname(os.path.abspath(__file__))
 build_dir = os.path.join(parent_dir, "frontend/public")
-_component_func = components.declare_component(
+_component_func = declare_cogstack_component(
     "st_cogstack_annotate", path=build_dir)
 
 
 def st_cogstack_annotate(label, text, entities, label_details=None,
                          theme_badge_content: BadgeTooltipField | None = BadgeTooltipField.LABEL,
                          theme_tooltip_content: BadgeTooltipField | None = BadgeTooltipField.DETAILS,
-                         key=None) -> list[dict]:
+                         key=None,
+                         on_change: WidgetCallback | None = None,
+                         on_change_args: WidgetArgs | None = None,
+                         on_change_kwargs: WidgetKwargs | None = None,
+        ) -> list[dict]:
     """st_cogstack_annotate.
 
     Parameters
@@ -43,6 +49,14 @@ def st_cogstack_annotate(label, text, entities, label_details=None,
         (Default "details") Used to determine which field is displayed as a tooltip when hovering the entity. If None,
         the tooltip is disabled. Options: None, "label", "details".
 
+    on_change: WidgetCallback
+        (Optional) Callback to be executed after the value for the component
+        changes, before the Streamlit script is re-run.
+    on_change_args: WidgetArgs
+        (Optional) Positional arguments for the `on_change` callback.
+    on_change_kwargs: WidgetKwargs
+        (Optional) Keyword arguments for the `on_change` callback.
+
     Returns
     -------
     object
@@ -59,6 +73,10 @@ def st_cogstack_annotate(label, text, entities, label_details=None,
         # Streamlit optional parameters
         key=key,
         default=entities,
+
+        on_change_handler=on_change,
+        on_change_args=on_change_args,
+        on_change_kwargs=on_change_kwargs,
     )
     return component_value
 
