@@ -19,8 +19,8 @@ _component_func = declare_cogstack_component(
 
 
 def st_cogstack_annotate(label, text, entities, label_details=None,
-                         theme_badge_content: BadgeTooltipField | None = BadgeTooltipField.LABEL,
-                         theme_tooltip_content: BadgeTooltipField | None = BadgeTooltipField.DETAILS,
+                         badge_field: BadgeTooltipField | None = BadgeTooltipField.LABEL,
+                         tooltip_field: BadgeTooltipField | None = BadgeTooltipField.DETAILS,
                          key=None,
                          on_change: WidgetCallback | None = None,
                          on_change_args: WidgetArgs | None = None,
@@ -41,13 +41,16 @@ def st_cogstack_annotate(label, text, entities, label_details=None,
         None, and the component's arguments are changed, the component will
         be re-mounted in the Streamlit frontend and lose its current state.
     label_details: str
-        Label with details used to annotate selected text (e.g. concept code and label)
-    theme_badge_content: str
-        (Default "label") Used to determine which field is displayed as a badge next to the entity. If None, the badge
-        is hidden. Options: None, "label", "details".
-    theme_tooltip_content: str
-        (Default "details") Used to determine which field is displayed as a tooltip when hovering the entity. If None,
-        the tooltip is disabled. Options: None, "label", "details".
+        Label with details used to annotate selected text (e.g. concept code and
+        label)
+    badge_field: str
+        (Default "label") Used to determine which field is displayed as a badge
+        next to the entity. If None, the badge is hidden.
+        Options: None, "label", "details".
+    tooltip_field: str
+        (Default "details") Used to determine which field is displayed as a
+        tooltip when hovering the entity. If None, the tooltip is disabled.
+        Options: None, "label", "details".
 
     on_change: WidgetCallback
         (Optional) Callback to be executed after the value for the component
@@ -68,8 +71,8 @@ def st_cogstack_annotate(label, text, entities, label_details=None,
         entities=entities,
         # Component's optional parameters
         label_details=label_details,
-        theme_badge_content=theme_badge_content,
-        theme_tooltip_content=theme_tooltip_content,
+        badge_field=badge_field,
+        tooltip_field=tooltip_field,
         # Streamlit optional parameters
         key=key,
         default=entities,

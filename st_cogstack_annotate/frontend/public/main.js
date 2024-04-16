@@ -47,10 +47,10 @@ let _entities = []            // Entities currently annotated. These are tuples 
 
 
 /*
- * Component theme
+ * Component config
  */
-let _themeBadge = "label"     // Determines which field to display in the badge (see getContentByTheme)
-let _themeTooltip = "details" // Determines which field to display in the tooltip (see getContentByTheme)
+let _badgeField = "label"     // Determines which field to display in the badge (see getContentByTheme)
+let _tooltipField = "details" // Determines which field to display in the tooltip (see getContentByTheme)
 
 
 
@@ -131,13 +131,13 @@ function removeEntity(start, end) {
 /**
  * Helper to determine the content of badge and tooltip.
  *
- * @param {String} themeVar Theme variable that determines which field to display
+ * @param {String} configVar Config variable that determines which field to display
  * @param {String} label Entity short label
  * @param {String} details Entity long label with details
  * @returns Value of "label" or "details", or null if the value of the theme variable is not recognised
  */
-function getContentByTheme(themeVar, label, details) {
-  switch (themeVar) {
+function getContentByConfig(configVar, label, details) {
+  switch (configVar) {
     case "label":
       return label
     case "details":
@@ -159,14 +159,14 @@ function createEntityNode(start, end, label, details) {
   const entity = _entityElem.cloneNode()
   entity.textContent = _sourceText.substring(start, end)
   // Badge
-  const badge = getContentByTheme(_themeBadge, label, details)
+  const badge = getContentByConfig(_badgeField, label, details)
   if (badge) {
     const entityBadge = _entityElemBadge.cloneNode()
     entityBadge.textContent = "" + badge
     entity.appendChild(entityBadge)
   }
   // Tooltip
-  const tooltip = getContentByTheme(_themeTooltip, label, details)
+  const tooltip = getContentByConfig(_tooltipField, label, details)
   if (tooltip) {
     const entityTooltip = _entityElemTooltip.cloneNode(true)
     entityTooltip.childNodes[0].textContent = "" + tooltip
@@ -379,8 +379,8 @@ function onRender(event) {
 
   // Optional component arguments
   _currentLabelDetails = data.args["label_details"]
-  _themeBadge = data.args["theme_badge_content"]
-  _themeTooltip = data.args["theme_tooltip_content"]
+  _badgeField = data.args["badge_field"]
+  _tooltipField = data.args["tooltip_field"]
 
   // Display text and highlight annotations
   _textElem.replaceChildren(
