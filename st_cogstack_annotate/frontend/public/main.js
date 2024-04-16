@@ -8,6 +8,7 @@
  */
 const CSS_TEXT = "st-cogstack-annotate-text"              // Main container of the text
 const CSS_ENTITY = "st-cogstack-annotate-entity"          // Each annotation entity
+const CSS_ENTITY_HIGH = "highlight"                       // Additional class for highlighted entity
 const CSS_ENTITY_REMOVE = "remove"                        // Button to remove entity
 const CSS_ENTITY_BADGE = "st-cogstack-annotate-badge"     // Badge to display entity short label
 const CSS_ENTITY_TOOLTIP = "st-cogstack-annotate-tooltip" // Tooltip to display entity label details
@@ -33,6 +34,15 @@ class Entity {
   }
 }
 
+class EntityStyle {
+  /**
+   * Whether the entity should be highlighted.
+   *
+   * @type Boolean
+   */
+  highlight = False
+}
+
 
 /*
  * Component data
@@ -51,6 +61,9 @@ let _entities = []            // Entities currently annotated. These are tuples 
  */
 let _badgeField = "label"     // Determines which field to display in the badge (see getContentByTheme)
 let _tooltipField = "details" // Determines which field to display in the tooltip (see getContentByTheme)
+let _entitiesStyles = {}      // Style options per entity (enables highlighting entities)
+                              // Dictionary mapping entity labels to custom style properties.
+                              // Each value is an object of type EntityStyle. E.g.: `{"E11": {"highlighted": True}}`.
 
 
 
@@ -158,6 +171,13 @@ function getContentByConfig(configVar, label, details) {
 function createEntityNode(start, end, label, details) {
   const entity = _entityElem.cloneNode()
   entity.textContent = _sourceText.substring(start, end)
+  // Custom style
+  const style = _entitiesStyles[label] ?? null;
+  if (style) {
+    if (style.highlight) {
+      entity.classList.add(CSS_ENTITY_HIGH)
+    }
+  }
   // Badge
   const badge = getContentByConfig(_badgeField, label, details)
   if (badge) {
@@ -381,6 +401,7 @@ function onRender(event) {
   _currentLabelDetails = data.args["label_details"]
   _badgeField = data.args["badge_field"]
   _tooltipField = data.args["tooltip_field"]
+  _entitiesStyles = data.args["entities_styles"]
 
   // Display text and highlight annotations
   _textElem.replaceChildren(
