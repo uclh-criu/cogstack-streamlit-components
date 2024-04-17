@@ -34,13 +34,13 @@
   user-select: none; /* Standard syntax */
 }
 
-/* Highlighted entity */
-.st-cogstack-annotate-entity.highlight {
+/* Selected entity */
+.st-cogstack-annotate-entity.selected {
   color: #111111;
   background-color: #FF4B4B;
 }
 
-.st-cogstack-annotate-entity.highlight .st-cogstack-annotate-badge {
+.st-cogstack-annotate-entity.selected .st-cogstack-annotate-badge {
   border-left-color: #FFA1A1;
 }
 

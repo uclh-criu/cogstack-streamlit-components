@@ -8,7 +8,7 @@
  */
 const CSS_TEXT = "st-cogstack-annotate-text"              // Main container of the text
 const CSS_ENTITY = "st-cogstack-annotate-entity"          // Each annotation entity
-const CSS_ENTITY_HIGH = "highlight"                       // Additional class for highlighted entity
+const CSS_ENTITY_SELECTED = "selected"                    // Additional class for selected entity
 const CSS_ENTITY_REMOVE = "remove"                        // Button to remove entity
 const CSS_ENTITY_BADGE = "st-cogstack-annotate-badge"     // Badge to display entity short label
 const CSS_ENTITY_TOOLTIP = "st-cogstack-annotate-tooltip" // Tooltip to display entity label details
@@ -16,6 +16,10 @@ const CSS_ENTITY_TOOLTIP = "st-cogstack-annotate-tooltip" // Tooltip to display 
 /*
  * Javascript Classes
  */
+
+ /**
+  * Main entity model.
+  */
 class Entity {
   /**
    * Creates a new Entity representing an annotated text in the source text.
@@ -24,23 +28,29 @@ class Entity {
    * @param {Number} end End index in source text
    * @param {String} label Short label (e.g. concept code)
    * @param {String} details Details about the entity, long label (e.g. concept code and label)
+   * @param {String} node DOM Node element
    */
-  constructor(start, end, label, details) {
+  constructor(start, end, label, details, node, properties) {
     this.start = start
     this.end = end
     this.label = label
     // Details is optional. If null, leave undefined to ignore field when converting entities to Streamlit
     this.details = details ? details : undefined
+    this.node = node
+    this.properties = properties
   }
 }
 
-class EntityStyle {
+/**
+ * Optional entity properties.
+ */
+class EntityProperties {
   /**
-   * Whether the entity should be highlighted.
+   * Whether the entity is selected.
    *
    * @type Boolean
    */
-  highlight = False
+  selected = false
 }
 
 
@@ -52,8 +62,7 @@ let _currentLabel = ""        // Latest label given, used to annotate entities.
 let _currentLabelDetails = "" // Latest label details given, used to annotate entities.
 let _sourceEntities = null    // Entities existent on startup, not the ones created
                               // in the current session.
-let _entities = []            // Entities currently annotated. These are tuples of
-                              // (start index, end index, selected text, label)
+let _entities = []            // Entities currently annotated, of type Entity, indexed by label.
 
 
 /*
@@ -61,9 +70,6 @@ let _entities = []            // Entities currently annotated. These are tuples 
  */
 let _badgeField = "label"     // Determines which field to display in the badge (see getContentByTheme)
 let _tooltipField = "details" // Determines which field to display in the tooltip (see getContentByTheme)
-let _entitiesStyles = {}      // Style options per entity (enables highlighting entities)
-                              // Dictionary mapping entity labels to custom style properties.
-                              // Each value is an object of type EntityStyle. E.g.: `{"E11": {"highlighted": True}}`.
 
 
 
@@ -105,9 +111,10 @@ _entityElemRemove.innerHTML = `<svg height="16" width="16" xmlns="http://www.w3.
  * @param {Number} end      End index in the source text
  * @param {String} label    Label linked to the entity (e.g. concept code)
  * @param {String} details  Details about the label (e.g. concept code and description)
+ * @param {EntityProperties} properties Optional entity properties
  * @returns true if the entity was added, false otherwise
  */
-function addEntity(start, end, label, details) {
+function addEntity(start, end, label, details, properties) {
   // Check that new entity does not overlap
   for (let i = 0; i < _entities.length; i++) {
     const e = _entities[i];
@@ -120,6 +127,8 @@ function addEntity(start, end, label, details) {
     end,
     label,
     details,
+    undefined,  // DOM element yet unknown
+    properties,
   ))
   _entities.sort((a, b) => a.start - b.start)
   return true
@@ -139,6 +148,26 @@ function removeEntity(start, end) {
     return true
   }
   return false
+}
+
+/**
+ * Sets the Streamlit's component value.
+ *
+ * Converts the list of `Entity` objects and the dictionary of
+ * `EntityProperties` into a serializable value.
+ *
+ * @returns Pair of values: a list of dictionaries representing the entities and
+ * the dictionary of entity properties.
+ */
+function getStreamlitValue() {
+  return _entities.map(e => ({
+    start: e.start,
+    end: e.end,
+    label: e.label,
+    details: e.details,
+    // Extra properties
+    selected: e.properties.selected,
+  }))
 }
 
 /**
@@ -166,17 +195,16 @@ function getContentByConfig(configVar, label, details) {
  * @param {Number} end      End index in the source text
  * @param {String} label    Short label, displayed by default as badge next to the text (e.g. concept code)
  * @param {String} details  Long label with details, displayed by default as tooltip text (e.g. concept code and label)
+ * @param {EntityProperties} properties Optional entity properties
  * @returns Node representing the entity with its text and label
  */
-function createEntityNode(start, end, label, details) {
+function createEntityNode(start, end, label, details, properties) {
   const entity = _entityElem.cloneNode()
   entity.textContent = _sourceText.substring(start, end)
-  // Custom style
-  const style = _entitiesStyles[label] ?? null;
-  if (style) {
-    if (style.highlight) {
-      entity.classList.add(CSS_ENTITY_HIGH)
-    }
+  entity.onclick = onEntityClick
+  // Entity properties
+  if (properties.selected) {
+    entity.classList.add(CSS_ENTITY_SELECTED)
   }
   // Badge
   const badge = getContentByConfig(_badgeField, label, details)
@@ -200,11 +228,42 @@ function createEntityNode(start, end, label, details) {
 
     // Send new value to Streamlit
     if (valid) {
-      Streamlit.setComponentValue(_entities)
+      Streamlit.setComponentValue(getStreamlitValue())
     }
   }
   entity.appendChild(entityRemove)
   return entity
+}
+
+/**
+ * Handles click on an entity.
+ *
+ * @param {Event} event Click event
+ */
+function onEntityClick(event) {
+  let badge;
+  const target = event.target
+  if (target.classList.contains(CSS_ENTITY)) {
+    badge = target.querySelector(`.${CSS_ENTITY_BADGE}`)
+  }
+  else if (target.classList.contains(CSS_ENTITY_BADGE)) {
+    badge = target
+  }
+  if (! badge) {
+    return
+  }
+  const label = badge.textContent
+
+  // Update all matching entities
+  for (const e of _entities) {
+    if (e.label === label) {
+      e.properties.selected = ! e.properties.selected
+      e.node.classList.toggle(CSS_ENTITY_SELECTED)
+    }
+  }
+
+  // Set component value
+  Streamlit.setComponentValue(getStreamlitValue())
 }
 
 /**
@@ -279,7 +338,9 @@ function renderText(text, entities) {
       buff.appendChild(document.createTextNode(substr))
     }
     // Create entity node
-    buff.appendChild(createEntityNode(e.start, e.end, e.label, e.details))
+    const node = createEntityNode(e.start, e.end, e.label, e.details, e.properties)
+    e.node = node
+    buff.appendChild(node)
     i = e.end
   }
   // Create last text node
@@ -354,15 +415,15 @@ _textElem.onmouseup = () => {
   start = start + selText.split("").findIndex(c => c.trim() !== "")
   end = end - selText.split("").reverse().findIndex(c => c.trim() !== "")
 
-  // Add selected entity
-  const valid = addEntity(start, end, _currentLabel, _currentLabelDetails)
+  // Add new entity from selection
+  const valid = addEntity(start, end, _currentLabel, _currentLabelDetails, { selected: false })
 
   // Update display
   _textElem.replaceChildren(...renderText(_sourceText, _entities).childNodes)
 
   // Send new value to Streamlit
   if (valid) {
-    Streamlit.setComponentValue(_entities)
+    Streamlit.setComponentValue(getStreamlitValue(_entities))
   }
 }
 
@@ -391,17 +452,14 @@ function onRender(event) {
   _sourceText = text
   _currentLabel = label;
 
-  // Add entities from source data on first render
-  if (_sourceEntities === null) {
-    entities.forEach(e => addEntity(e.start, e.end, e.label, e.details))
-    _sourceEntities = JSON.parse(JSON.stringify(_entities))
-  }
+  // Add entities from source data
+  _entities = []
+  entities.forEach(e => addEntity(e.start, e.end, e.label, e.details, { selected: e.selected }))
 
   // Optional component arguments
   _currentLabelDetails = data.args["label_details"]
   _badgeField = data.args["badge_field"]
   _tooltipField = data.args["tooltip_field"]
-  _entitiesStyles = data.args["entities_styles"]
 
   // Display text and highlight annotations
   _textElem.replaceChildren(

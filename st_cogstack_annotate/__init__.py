@@ -12,20 +12,6 @@ class BadgeTooltipField(str, Enum):
     DETAILS = "details"
 
 
-class EntityStyle(dict):
-    """
-    Style properties that can be defined to customise the look of entities.
-    """
-    def __init__(self, highlight: bool = False) -> None:
-        """
-        Initialises the object with the given style properties.
-
-        :param highlight: Entities will be highlighted with a different colour.
-        """
-        self.highlight = highlight
-        self["highlight"] = highlight
-
-
 parent_dir = os.path.dirname(os.path.abspath(__file__))
 build_dir = os.path.join(parent_dir, "frontend/public")
 _component_func = declare_cogstack_component(
@@ -35,7 +21,6 @@ _component_func = declare_cogstack_component(
 def st_cogstack_annotate(label, text, entities, label_details=None,
                          badge_field: BadgeTooltipField | None = BadgeTooltipField.LABEL,
                          tooltip_field: BadgeTooltipField | None = BadgeTooltipField.DETAILS,
-                         entities_styles: dict[str, EntityStyle] | None = None,
                          key=None,
                          on_change: WidgetCallback | None = None,
                          on_change_args: WidgetArgs | None = None,
@@ -66,10 +51,6 @@ def st_cogstack_annotate(label, text, entities, label_details=None,
         (Default "details") Used to determine which field is displayed as a
         tooltip when hovering the entity. If None, the tooltip is disabled.
         Options: None, "label", "details".
-    entities_styles: dict[str, EntityStyle]
-        (Default None) Dictionary mapping entity labels to custom style
-        properties. E.g.: `{"E11": {"highlighted": True}}`. Each value should be
-        an object of type `EntityStyle`.
 
     on_change: WidgetCallback
         (Optional) Callback to be executed after the value for the component
@@ -92,7 +73,6 @@ def st_cogstack_annotate(label, text, entities, label_details=None,
         label_details=label_details,
         badge_field=badge_field,
         tooltip_field=tooltip_field,
-        entities_styles=entities_styles,
         # Streamlit optional parameters
         key=key,
         default=entities,
