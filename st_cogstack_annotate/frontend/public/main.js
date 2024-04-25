@@ -29,6 +29,7 @@ class Entity {
    * @param {String} label Short label (e.g. concept code)
    * @param {String} details Details about the entity, long label (e.g. concept code and label)
    * @param {String} node DOM Node element
+   * @param {EntityProperties} properties Custom entity properties
    */
   constructor(start, end, label, details, node, properties) {
     this.start = start
@@ -37,12 +38,15 @@ class Entity {
     // Details is optional. If null, leave undefined to ignore field when converting entities to Streamlit
     this.details = details ? details : undefined
     this.node = node
-    this.properties = properties
+    this.properties = properties ?? {}
   }
 }
 
 /**
- * Optional entity properties.
+ * Model for additional entity properties.
+ *
+ * At minimum, "selected" is used to identify selected entities.
+ * Other custom properties could be sent from Streamlit.
  */
 class EntityProperties {
   /**
@@ -111,7 +115,7 @@ _entityElemRemove.innerHTML = `<svg height="16" width="16" xmlns="http://www.w3.
  * @param {Number} end      End index in the source text
  * @param {String} label    Label linked to the entity (e.g. concept code)
  * @param {String} details  Details about the label (e.g. concept code and description)
- * @param {EntityProperties} properties Optional entity properties
+ * @param {EntityProperties} properties Custom entity properties
  * @returns true if the entity was added, false otherwise
  */
 function addEntity(start, end, label, details, properties) {
@@ -135,7 +139,7 @@ function addEntity(start, end, label, details, properties) {
 }
 
 /**
- * Removes an entity based on its positon in the full text.
+ * Removes an entity based on its position in the full text.
  *
  * @param {Number} start  Start index in the source text
  * @param {Number} end    End index in the source text
@@ -153,11 +157,9 @@ function removeEntity(start, end) {
 /**
  * Sets the Streamlit's component value.
  *
- * Converts the list of `Entity` objects and the dictionary of
- * `EntityProperties` into a serializable value.
+ * Converts the list of `Entity` objects into a serializable value.
  *
- * @returns Pair of values: a list of dictionaries representing the entities and
- * the dictionary of entity properties.
+ * @returns A list of dictionaries representing the entities.
  */
 function getStreamlitValue() {
   return _entities.map(e => ({
@@ -166,7 +168,7 @@ function getStreamlitValue() {
     label: e.label,
     details: e.details,
     // Extra properties
-    selected: e.properties.selected,
+    properties: e.properties,
   }))
 }
 
@@ -257,7 +259,7 @@ function onEntityClick(event) {
   // Update all matching entities
   for (const e of _entities) {
     if (e.label === label) {
-      e.properties.selected = ! e.properties.selected
+      e.properties.selected = ! (e.properties.selected ?? false)
       e.node.classList.toggle(CSS_ENTITY_SELECTED)
     }
   }
@@ -416,7 +418,7 @@ _textElem.onmouseup = () => {
   end = end - selText.split("").reverse().findIndex(c => c.trim() !== "")
 
   // Add new entity from selection
-  const valid = addEntity(start, end, _currentLabel, _currentLabelDetails, { selected: false })
+  const valid = addEntity(start, end, _currentLabel, _currentLabelDetails)
 
   // Update display
   _textElem.replaceChildren(...renderText(_sourceText, _entities).childNodes)
@@ -454,7 +456,7 @@ function onRender(event) {
 
   // Add entities from source data
   _entities = []
-  entities.forEach(e => addEntity(e.start, e.end, e.label, e.details, { selected: e.selected }))
+  entities.forEach(e => addEntity(e.start, e.end, e.label, e.details, e.properties))
 
   // Optional component arguments
   _currentLabelDetails = data.args["label_details"]
