@@ -55,6 +55,13 @@ class EntityProperties {
    * @type Boolean
    */
   selected = false
+
+  /**
+   * CSS style attributes.
+   *
+   * @type CSSStyleDeclaration
+   */
+  style = {}
 }
 
 
@@ -207,6 +214,14 @@ function createEntityNode(start, end, label, details, properties) {
   // Entity properties
   if (properties.selected) {
     entity.classList.add(CSS_ENTITY_SELECTED)
+  }
+  // Custom CSS style
+  if (properties.style) {
+    for (const k in properties.style) {
+      if (entity.style.hasOwnProperty(k)) {
+        entity.style[k] = properties.style[k]
+      }
+    }
   }
   // Badge
   const badge = getContentByConfig(_badgeField, label, details)
