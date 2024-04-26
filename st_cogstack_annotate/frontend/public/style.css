@@ -38,6 +38,7 @@
 .st-cogstack-annotate-entity.selected {
   color: #111111;
   background-color: #FF4B4B;
+  border-bottom: 2px solid #D73434;
 }
 
 .st-cogstack-annotate-entity.selected .st-cogstack-annotate-badge {
