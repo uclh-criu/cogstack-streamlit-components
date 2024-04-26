@@ -57,11 +57,25 @@ class EntityProperties {
   selected = false
 
   /**
-   * CSS style attributes.
+   * Entity CSS style attributes.
    *
    * @type CSSStyleDeclaration
    */
   style = {}
+
+  /**
+   * Badge CSS style attributes.
+   *
+   * @type CSSStyleDeclaration
+   */
+  badgeStyle = {}
+
+  /**
+   * Tooltip CSS style attributes.
+   *
+   * @type CSSStyleDeclaration
+   */
+  tooltipStyle = {}
 }
 
 
@@ -229,6 +243,15 @@ function createEntityNode(start, end, label, details, properties) {
     const entityBadge = _entityElemBadge.cloneNode()
     entityBadge.textContent = "" + badge
     entity.appendChild(entityBadge)
+
+    // Custom CSS style
+    if (properties.badgeStyle) {
+      for (const k in properties.badgeStyle) {
+        if (entityBadge.style.hasOwnProperty(k)) {
+          entityBadge.style[k] = properties.badgeStyle[k]
+        }
+      }
+    }
   }
   // Tooltip
   const tooltip = getContentByConfig(_tooltipField, label, details)
@@ -236,6 +259,15 @@ function createEntityNode(start, end, label, details, properties) {
     const entityTooltip = _entityElemTooltip.cloneNode(true)
     entityTooltip.childNodes[0].textContent = "" + tooltip
     entity.appendChild(entityTooltip)
+
+    // Custom CSS style
+    if (properties.tooltipStyle) {
+      for (const k in properties.tooltipStyle) {
+        if (entityTooltip.style.hasOwnProperty(k)) {
+          entityTooltip.style[k] = properties.tooltipStyle[k]
+        }
+      }
+    }
   }
   // Remove button
   const entityRemove = _entityElemRemove.cloneNode(true)
