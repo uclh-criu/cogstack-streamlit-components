@@ -9,6 +9,8 @@
 const CSS_SEARCH_INPUT = "st-cogstack-concept-search-input"       // Main search input
 const CSS_RESULT_LIST = "st-cogstack-concept-search-results"      // List of results
 const CSS_RESULT_ITEM = "st-cogstack-concept-search-result-item"  // Single result item
+const CSS_RESULT_SELECT = "st-cogstack-concept-search-select"     // Hidden select box with result options
+const CSS_CHOSEN_ITEM = "st-cogstack-concept-search-chosen"       // Chosen item from the result list
 
 
 
@@ -69,8 +71,8 @@ class SearchResult {
     this.searchText = searchText
     this.searchTerms = searchTerms
     this.results = results.map(c => ({
-      "code": selected.code,
-      "label": selected.label,
+      "code": c.code,
+      "label": c.label,
     }))
     this.selected = {
       "code": selected.code,
@@ -84,13 +86,16 @@ class SearchResult {
 /*
  * Component data
  */
+const MIN_SEARCH_LEN = 2
 const MAX_RESULTS = 10
+const KEYS_NAV = ["Up", "ArrowUp", "Down", "ArrowDown", "Enter"]
 
 let _sourceConcepts = []        // List of searchable concepts
 let _lastSearchText = null      // Last text searched for
 let _lastSearchTerms = null     // List of terms used for the last search
 let _lastSelected = null        // Last Concept selected (currently selected)
 let _lastResults = null         // Results from the last search
+let _currentListItem = null;    // Result option currently highlighted
 
 
 
@@ -119,10 +124,14 @@ _resultItem.classList.add("list-group-item", CSS_RESULT_ITEM)
 
 // Hidden select box to control selected concept
 const _resultSelect = document.body.appendChild(document.createElement("select"))
-// _resultSelect.style.display = "none"
+_resultSelect.classList.add(CSS_RESULT_SELECT)
 
-// Result option currently highlighted
-let _currentResultOption = document.createElement("option")
+const _chosenItem = document.body.appendChild(document.createElement("div"))
+_chosenItem.classList.add(CSS_CHOSEN_ITEM)
+// _chosenItem.textContent = "Selected concept: "
+
+const _chosenLabel = document.createElement("span")
+_chosenItem.appendChild(_chosenLabel)
 
 
 /**
@@ -172,22 +181,22 @@ function createResultOption(concept) {
 
 /**
  * Returnes whether the search text matches a given `Concept`.
- * 
+ *
  * @param {String} searchText Text to be matched
  * @param {Concept} concept Concept to see if it matches the text
  * @returns True if the concept matches the text, false otherwise.
  */
 function matchConcept(searchText, concept) {
-  return concept.code.startsWith(searchText) || concept.label.startsWith(searchText)
+  return concept.code.startsWith(searchText) || concept.label.includes(searchText)
 }
 
 /**
  * Generator that returns the next Concept matching the search text.
- * 
+ *
  * Each call to `next()` will return the following concept, starting by the
  * first in the given list. If a concept has children, search continues on them
  * before moving to the next sibling concept.
- * 
+ *
  * @param {String} searchText Text to be matched with concepts
  * @param {Concept[]} concepts List of concepts where the text is searched
  */
@@ -208,73 +217,66 @@ function* findNextResult(searchText, concepts) {
   return
 }
 
+function selectListItem(newListItem) {
+  if (_currentListItem) {
+    _currentListItem.classList.remove("active")
+  }
+  if (newListItem) {
+    newListItem.classList.add("active")
+  }
+  _currentListItem = newListItem
+}
+
+function selectNextListItem() {
+  if (! _currentListItem) {
+    selectListItem(_resultList.firstChild)
+  }
+  else if (_currentListItem.nextSibling) {
+    // Move to the next list item
+    selectListItem(_currentListItem.nextSibling)
+    // Change select option
+    _resultSelect.selectedIndex++
+  }
+}
+
+function selectPrevListItem() {
+  if (_currentListItem && _currentListItem.previousSibling) {
+    // Move to the previous list item
+    selectListItem(_currentListItem.previousSibling)
+    // Change select option
+    _resultSelect.selectedIndex--
+  }
+}
+
+function confirmCurrentItem() {
+  if (_currentListItem) {
+    _lastSelected = _lastResults[_resultSelect.selectedIndex]
+    _chosenLabel.textContent = _currentListItem.textContent
+
+    Streamlit.setFrameHeight()
+
+    // Set component value
+    Streamlit.setComponentValue(getStreamlitValue())
+  }
+}
+
 
 /*
  * Event handling
  */
 
-// Handle key up events on the search input
-_searchInput.onkeyup = (event) => {
-  console.debug(event)
-  const navigationKeys = ["Up", "ArrowUp", "Down", "ArrowDown"]
-  const enterKeys = ["Enter"]
-
-  // Handle navigation between options
-  if (navigationKeys.includes(event.key)) {
-    let oldResultOption = _currentResultOption
-    switch (event.key) {
-      case "Up":
-      case "ArrowUp":
-        if (_currentResultOption && _currentResultOption.previousSibling) {
-          // Move to the previous list item
-          _currentResultOption = _currentResultOption.previousSibling
-          // Change select option
-          _resultSelect.selectedIndex++
-        }
-        break;
-        
-      case "Down":
-      case "ArrowDown":
-        if (! _currentResultOption) {
-          _currentResultOption = _resultList.firstChild
-        }
-        else if (_currentResultOption.nextSibling) {
-          // Move to the next list item
-          _currentResultOption = _currentResultOption.nextSibling
-          // Change select option
-          _resultSelect.selectedIndex--
-        }
-    }
-
-    // Change which list item is selected
-    if (oldResultOption) {
-      oldResultOption.classList.remove("active")
-    }
-    if (_currentResultOption) {
-      _currentResultOption.classList.add("active")
-    }
-  }
-
-  // Handle selection of one option
-  else if (enterKeys.includes(event.key)) {
-    if (_currentResultOption) {
-      _searchInput.value = _currentResultOption.textContent
-      _lastSelected = _lastResults[_resultSelect.selectedIndex]
-
-      // Set component value
-      // Streamlit.setComponentValue(getStreamlitValue())
-    }
-  }
-
+// Handle key up event on the search input (update search)
+_searchInput.onkeyup = () => {
   // Handle search text change
-  else if (! _lastSearchText || _searchInput.value !== _lastSearchText) {
+  if (_lastSearchText == null || _searchInput.value !== _lastSearchText) {
     _lastSearchText = _searchInput.value
+    _lastSearchTerms = _lastSearchText.split(" ")
     _lastResults = []
 
     const resultListItems = []
     const resultOptions = []
 
-    // if (_lastSearchText.length >= 3) {    
+    if (_lastSearchText.length >= MIN_SEARCH_LEN) {
       const gen = findNextResult(_lastSearchText, _sourceConcepts)
       let nextResult = gen.next()
 
@@ -285,11 +287,37 @@ _searchInput.onkeyup = (event) => {
         resultOptions.push(createResultOption(nextResult.value))
         nextResult = gen.next()
       }
-    // }
+    }
 
     _resultList.replaceChildren(...resultListItems)
     _resultSelect.replaceChildren(...resultOptions)
+
+    // Select first item by default
+    selectListItem(_resultList.firstChild)
+
     Streamlit.setFrameHeight()
+  }
+}
+
+// Handle key down event on the search input (navigate and choose item)
+_searchInput.onkeydown = (event) => {
+  if (KEYS_NAV.includes(event.key)) {
+    switch (event.key) {
+      // Handle navigation between options
+      case "Up":
+      case "ArrowUp":
+        selectPrevListItem()
+        break;
+
+      case "Down":
+      case "ArrowDown":
+        selectNextListItem()
+        break;
+
+      // Handle selection of one option
+      case "Enter":
+        confirmCurrentItem()
+    }
   }
 }
 
@@ -318,13 +346,16 @@ function onRender(event) {
 
   _sourceConcepts = []
   concepts.forEach(c => {
-    _sourceConcepts.push(new Concept(c["code"], c["label"], c["children"], c["metadata"], c["properties"]))
+    _sourceConcepts.push(new Concept(c.code, c.label, c.children, c.metadata, c.properties))
   });
 
 
   // Maintain compatibility with older versions of Streamlit that don't send
   // a theme object.
+  console.debug(data.theme)
   if (data.theme) {
+    document.body.classList.add(`theme-${data.theme.base}`)
+
     // Use CSS vars to style our button border. Alternatively, the theme style
     // is defined in the data.theme object.
     /*
