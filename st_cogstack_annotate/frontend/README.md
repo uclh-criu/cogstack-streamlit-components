@@ -8,7 +8,7 @@ given label.
 
 In Python, display the component and get the list of annotated entities with:
 ```python
-from components import st_cogstack_annotate
+from components.st_cogstack_annotate import st_cogstack_annotate
 entities = st_cogstack_annotate("Label", "Test text", [])
 ```
 
@@ -34,22 +34,19 @@ https://github.com/streamlit/component-template.
 
 There is no need to install dependencies.
 
-Download this component and store it along your Streamlit app, e.g. inside a
+You can add this component to your project by defining a new Git submodule and
+cloning the repository containing this component at the root level, inside a
 Python package `components`.
 
-Then, update `components/__init__.py` and import it. This will make it easier to
-use later in your app.
-
-```python
-# <app_root>/components/__init__.py
-import st_cogstack_annotate
+```bash
+git submodule add https://github.com/uclh-criu/cogstack-streamlit-components components
 ```
 
 Finally, import the component in your Streamlit app.
 
 ```python
 # E.g., in <app_root>/pages/1_test_page.py
-from components import st_cogstack_annotate
+from components.st_cogstack_annotate import st_cogstack_annotate
 entities = st_cogstack_annotate("Label", "Test text", [])
 ```
 
