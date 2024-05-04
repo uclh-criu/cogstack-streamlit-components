@@ -217,6 +217,22 @@ function* findNextResult(searchText, concepts) {
   return
 }
 
+function isListHidden() {
+  return _resultList.style.display == "none"
+}
+
+function showList() {
+  _resultList.style.display = "block"
+  Streamlit.setFrameHeight()
+}
+
+function hideList() {
+  _resultList.style.display = "none"
+  selectListItem(null)
+  _resultSelect.selectedIndex = -1
+  Streamlit.setFrameHeight()
+}
+
 function selectListItem(newListItem) {
   if (_currentListItem) {
     _currentListItem.classList.remove("active")
@@ -228,8 +244,12 @@ function selectListItem(newListItem) {
 }
 
 function selectNextListItem() {
+  if (isListHidden()) {
+    showList()
+  }
   if (! _currentListItem) {
     selectListItem(_resultList.firstChild)
+    _resultSelect.selectedIndex = 0
   }
   else if (_currentListItem.nextSibling) {
     // Move to the next list item
@@ -240,6 +260,9 @@ function selectNextListItem() {
 }
 
 function selectPrevListItem() {
+  if (isListHidden()) {
+    return
+  }
   if (_currentListItem && _currentListItem.previousSibling) {
     // Move to the previous list item
     selectListItem(_currentListItem.previousSibling)
@@ -253,7 +276,7 @@ function confirmCurrentItem() {
     _lastSelected = _lastResults[_resultSelect.selectedIndex]
     _chosenLabel.textContent = _currentListItem.textContent
 
-    Streamlit.setFrameHeight()
+    hideList()
 
     // Set component value
     Streamlit.setComponentValue(getStreamlitValue())
@@ -344,6 +367,8 @@ function onRender(event) {
   // Python script.
   let {concepts} = data.args
 
+  // TODO: Do we need to load concepts on every render?
+  //_sourceConcepts = concepts
   _sourceConcepts = []
   concepts.forEach(c => {
     _sourceConcepts.push(new Concept(c.code, c.label, c.children, c.metadata, c.properties))
@@ -352,7 +377,6 @@ function onRender(event) {
 
   // Maintain compatibility with older versions of Streamlit that don't send
   // a theme object.
-  console.debug(data.theme)
   if (data.theme) {
     document.body.classList.add(`theme-${data.theme.base}`)
 

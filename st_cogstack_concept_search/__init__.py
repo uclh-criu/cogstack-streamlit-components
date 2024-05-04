@@ -1,5 +1,4 @@
 import os
-
 import typing
 
 import streamlit as st
@@ -8,7 +7,7 @@ from streamlit.runtime.state import WidgetArgs, WidgetCallback, WidgetKwargs
 from components import declare_cogstack_component
 
 
-class Concept:
+class SearchConcept:
     """
     Model representing a concept in the terminology.
     """
@@ -18,15 +17,34 @@ class Concept:
     metadata: dict
     properties: dict
 
+    def __init__(
+            self, code: str, label: str, children: list = None,
+            metadata: dict = None, properties: dict = None,
+    ):
+        self.code = code
+        self.label = label
+        self.children = children
+        self.metadata = metadata
+        self.properties = properties
+
 
 class SearchResult:
     """
     Model representing the result of a concept search.
     """
-    searchText: str
-    searchTerms: str
+    search_text: str
+    search_terms: list[str]
     results: list
-    selected: Concept
+    selected: SearchConcept
+
+    def __init__(
+            self, searchText: str, searchTerms: list[str], results: list[dict],
+            selected: dict = None,
+    ):
+        self.search_text = searchText
+        self.search_terms = searchTerms
+        self.results = [SearchConcept(**c) for c in results]
+        self.selected = SearchConcept(**selected) if selected else None
 
 
 parent_dir = os.path.dirname(os.path.abspath(__file__))
@@ -36,12 +54,12 @@ _component_func = declare_cogstack_component(
 
 
 def st_cogstack_concept_search(
-    concepts: list,
+    concepts: list[dict],
     key=None,
     on_change: typing.Union[WidgetCallback, None] = None,
     on_change_args: typing.Union[WidgetArgs, None] = None,
     on_change_kwargs: typing.Union[WidgetKwargs, None] = None,
-) -> dict:
+) -> SearchResult:
     """st_cogstack_concept_search.
 
     Parameters
@@ -67,7 +85,7 @@ def st_cogstack_concept_search(
         (Default None) Search result information including searched text, list
         of concepts found, and selected concept (if any).
     """
-    component_value = _component_func(
+    component_value: dict = _component_func(
         concepts=concepts,
         # Component's optional parameters
         # ...
@@ -79,7 +97,7 @@ def st_cogstack_concept_search(
         on_change_args=on_change_args,
         on_change_kwargs=on_change_kwargs,
     )
-    return component_value
+    return SearchResult(**component_value) if component_value else None
 
 
 def main():
