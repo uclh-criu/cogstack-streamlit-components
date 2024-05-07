@@ -1,5 +1,9 @@
 .st-cogstack-concept-search-result-item {
   color: var(--text-color);
+  user-select: none;
+  transition-property: background-color, border-color;
+  transition-duration: .05s;
+  transition-timing-function: ease-out;
 }
 
 .theme-dark .st-cogstack-concept-search-result-item {
@@ -17,6 +21,7 @@
 }
 
 .st-cogstack-concept-search-chosen {
+  display: none;
   margin-top: .5rem;
   font-size: .9rem;
 }

@@ -9,7 +9,6 @@
 const CSS_SEARCH_INPUT = "st-cogstack-concept-search-input"       // Main search input
 const CSS_RESULT_LIST = "st-cogstack-concept-search-results"      // List of results
 const CSS_RESULT_ITEM = "st-cogstack-concept-search-result-item"  // Single result item
-const CSS_RESULT_SELECT = "st-cogstack-concept-search-select"     // Hidden select box with result options
 const CSS_CHOSEN_ITEM = "st-cogstack-concept-search-chosen"       // Chosen item from the result list
 
 
@@ -88,14 +87,17 @@ class SearchResult {
  */
 const MIN_SEARCH_LEN = 2
 const MAX_RESULTS = 10
-const KEYS_NAV = ["Up", "ArrowUp", "Down", "ArrowDown", "Enter"]
+const KEYS_NAV = ["Up", "ArrowUp", "Down", "ArrowDown", "Enter", "Escape"]
 
 let _sourceConcepts = []        // List of searchable concepts
 let _lastSearchText = null      // Last text searched for
 let _lastSearchTerms = null     // List of terms used for the last search
 let _lastSelected = null        // Last Concept selected (currently selected)
 let _lastResults = null         // Results from the last search
-let _currentListItem = null;    // Result option currently highlighted
+let _currentListItem = null     // Result item currently highlighted
+let _hoveredListItem = null     // Result item currently hovered (helper to
+                                // prevent search input blur event when an item
+                                // is clicked)
 
 
 
@@ -114,6 +116,7 @@ let _currentListItem = null;    // Result option currently highlighted
 const _searchInput = document.body.appendChild(document.createElement("input"))
 _searchInput.type = "search"
 _searchInput.placeholder = "Search by code or label"
+_searchInput.ariaLabel = "Search by code or label"
 _searchInput.classList.add("form-control", CSS_SEARCH_INPUT)
 
 const _resultList = document.body.appendChild(document.createElement("ul"))
@@ -122,9 +125,9 @@ _resultList.classList.add("list-group", CSS_RESULT_LIST)
 const _resultItem = document.createElement("li")
 _resultItem.classList.add("list-group-item", CSS_RESULT_ITEM)
 
-// Hidden select box to control selected concept
-const _resultSelect = document.body.appendChild(document.createElement("select"))
-_resultSelect.classList.add(CSS_RESULT_SELECT)
+// Hidden input to store the index of the selected concept
+const _indexHidden = document.body.appendChild(document.createElement("input"))
+_indexHidden.type = "hidden"
 
 const _chosenItem = document.body.appendChild(document.createElement("div"))
 _chosenItem.classList.add(CSS_CHOSEN_ITEM)
@@ -149,12 +152,17 @@ function getStreamlitValue() {
 /**
  * Creates an HTML node to represent a `Concept` in the results list.
  *
- * @param {Concept} concept
+ * @param {Concept} concept Concept item to be displayed
+ * @param {Number} index Index of the concept in the result list
  * @returns Node representing the result `Concept` as a list item
  */
-function createResultItem(concept) {
+function createResultItem(concept, index) {
   const elem = _resultItem.cloneNode()
   elem.textContent = `${concept.code} | ${concept.label}`
+  elem.dataset.index = index
+  elem.onmouseover = resultItemMouseOver
+  elem.onmouseout = resultItemMouseOut
+  elem.onclick = resultItemClick
   // Custom CSS style
   if (concept.properties && concept.properties.style) {
     for (const k in concept.properties.style) {
@@ -164,19 +172,6 @@ function createResultItem(concept) {
     }
   }
   return elem
-}
-
-/**
- * Creates an HTML node to represent a `Concept` option in the results select box.
- *
- * @param {Concept} concept
- * @returns Node representing the result `Concept` as an HTML option
- */
-function createResultOption(concept) {
-  const option = document.createElement("option")
-  option.value = concept.code
-  option.textContent = `${concept.code} | ${concept.label}`
-  return option
 }
 
 /**
@@ -228,17 +223,17 @@ function showList() {
 
 function hideList() {
   _resultList.style.display = "none"
-  selectListItem(null)
-  _resultSelect.selectedIndex = -1
   Streamlit.setFrameHeight()
 }
 
 function selectListItem(newListItem) {
   if (_currentListItem) {
     _currentListItem.classList.remove("active")
+    _indexHidden.value = null
   }
   if (newListItem) {
     newListItem.classList.add("active")
+    _indexHidden.value = newListItem.dataset.index
   }
   _currentListItem = newListItem
 }
@@ -247,15 +242,12 @@ function selectNextListItem() {
   if (isListHidden()) {
     showList()
   }
-  if (! _currentListItem) {
+  else if (! _currentListItem) {
     selectListItem(_resultList.firstChild)
-    _resultSelect.selectedIndex = 0
   }
   else if (_currentListItem.nextSibling) {
     // Move to the next list item
     selectListItem(_currentListItem.nextSibling)
-    // Change select option
-    _resultSelect.selectedIndex++
   }
 }
 
@@ -266,14 +258,12 @@ function selectPrevListItem() {
   if (_currentListItem && _currentListItem.previousSibling) {
     // Move to the previous list item
     selectListItem(_currentListItem.previousSibling)
-    // Change select option
-    _resultSelect.selectedIndex--
   }
 }
 
 function confirmCurrentItem() {
   if (_currentListItem) {
-    _lastSelected = _lastResults[_resultSelect.selectedIndex]
+    _lastSelected = _lastResults[_indexHidden.value]
     _chosenLabel.textContent = _currentListItem.textContent
 
     hideList()
@@ -289,15 +279,15 @@ function confirmCurrentItem() {
  */
 
 // Handle key up event on the search input (update search)
-_searchInput.onkeyup = () => {
+_searchInput.oninput = () => {
   // Handle search text change
   if (_lastSearchText == null || _searchInput.value !== _lastSearchText) {
     _lastSearchText = _searchInput.value
     _lastSearchTerms = _lastSearchText.split(" ")
     _lastResults = []
+    _indexHidden.value = null
 
     const resultListItems = []
-    const resultOptions = []
 
     if (_lastSearchText.length >= MIN_SEARCH_LEN) {
       const gen = findNextResult(_lastSearchText, _sourceConcepts)
@@ -306,14 +296,12 @@ _searchInput.onkeyup = () => {
       while (!nextResult.done && _lastResults.length < MAX_RESULTS) {
         _lastResults.push(nextResult.value)
         // Create result DOM elements
-        resultListItems.push(createResultItem(nextResult.value))
-        resultOptions.push(createResultOption(nextResult.value))
+        resultListItems.push(createResultItem(nextResult.value, _lastResults.length - 1))
         nextResult = gen.next()
       }
     }
 
     _resultList.replaceChildren(...resultListItems)
-    _resultSelect.replaceChildren(...resultOptions)
 
     // Select first item by default
     selectListItem(_resultList.firstChild)
@@ -330,18 +318,59 @@ _searchInput.onkeydown = (event) => {
       case "Up":
       case "ArrowUp":
         selectPrevListItem()
-        break;
+        break
 
       case "Down":
       case "ArrowDown":
         selectNextListItem()
-        break;
+        break
 
       // Handle selection of one option
       case "Enter":
         confirmCurrentItem()
+        break
+
+      // Close list on "Escape"
+      case "Escape":
+        hideList()
     }
+    event.preventDefault()
   }
+}
+
+// Handle mouse click event on the search input (show list)
+_searchInput.onclick = () => {
+  showList()
+}
+
+// Handle focus lost (blur) event on the search input (hide list)
+_searchInput.onblur = () => {
+  if (_hoveredListItem === null) {
+    hideList()
+  }
+}
+
+/**
+ * Handle mouse hover event over result items (select item)
+ */
+function resultItemMouseOver() {
+  selectListItem(this)
+  _hoveredListItem = this
+}
+
+/**
+ * Handle mouse out event for result items (clear hovered item)
+ */
+function resultItemMouseOut() {
+  _hoveredListItem = null
+}
+
+/**
+ * Handle mouse click event on result items (confirm item)
+*/
+function resultItemClick() {
+  confirmCurrentItem()
+  _hoveredListItem = null
 }
 
 
