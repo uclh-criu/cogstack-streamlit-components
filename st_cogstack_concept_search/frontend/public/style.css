@@ -16,10 +16,6 @@
   border-color: var(--primary-color);
 }
 
-.st-cogstack-concept-search-select {
-  display: none;
-}
-
 .st-cogstack-concept-search-chosen {
   display: none;
   margin-top: .5rem;
@@ -28,4 +24,70 @@
 
 .st-cogstack-concept-search-chosen span {
   font-weight: bold;
+}
+
+
+/* Additional styles to show metadata next to results */
+.st-cogstack-concept-search-with-meta {
+  position: relative;
+}
+
+.st-cogstack-concept-search-with-meta .st-cogstack-concept-search-results {
+  width: 65%;
+}
+
+.st-cogstack-concept-search-meta {
+  position: absolute;
+  width: 35%;
+  top: 0;
+  right: 0;
+  bottom: 0;
+
+  display: flex;
+  flex-direction: column;
+  padding: .5rem 0 .5rem 1rem;
+  overflow-y: hidden;
+}
+
+.st-cogstack-concept-search-meta:hover {
+  overflow-y: auto;
+}
+
+@supports selector(::-webkit-scrollbar) {
+  .st-cogstack-concept-search-meta::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+    background: transparent;
+    border-radius: 100px;
+  }
+
+  .st-cogstack-concept-search-meta::-webkit-scrollbar-thumb {
+    background: #6C6E72;
+    border-radius: 100px;
+  }
+}
+
+@supports (not selector(::-webkit-scrollbar)) and (scrollbar-color: auto) {
+  .st-cogstack-concept-search-meta:hover {
+    scrollbar-color: #6C6E72 transparent;
+    scrollbar-width: thin;
+  }
+}
+
+.st-cogstack-concept-search-meta-item:not(:first-child) {
+  margin-top: .5rem;
+}
+
+.st-cogstack-concept-search-meta-item :first-child {
+  font-weight: bold;
+  text-decoration: underline;
+  text-transform: capitalize;
+}
+
+.st-cogstack-concept-search-meta-item :last-child {
+  white-space: pre-wrap;
+}
+
+.st-cogstack-concept-search-meta-empty {
+  font-style: italic;
 }

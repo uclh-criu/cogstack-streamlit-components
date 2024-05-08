@@ -55,6 +55,7 @@ _component_func = declare_cogstack_component(
 
 def st_cogstack_concept_search(
     concepts: list[dict],
+    show_metadata=False,
     key=None,
     on_change: typing.Union[WidgetCallback, None] = None,
     on_change_args: typing.Union[WidgetArgs, None] = None,
@@ -88,7 +89,7 @@ def st_cogstack_concept_search(
     component_value: dict = _component_func(
         concepts=concepts,
         # Component's optional parameters
-        # ...
+        show_metadata=show_metadata,
         # Streamlit optional parameters
         key=key,
         default=None,

@@ -10,6 +10,10 @@ const CSS_SEARCH_INPUT = "st-cogstack-concept-search-input"       // Main search
 const CSS_RESULT_LIST = "st-cogstack-concept-search-results"      // List of results
 const CSS_RESULT_ITEM = "st-cogstack-concept-search-result-item"  // Single result item
 const CSS_CHOSEN_ITEM = "st-cogstack-concept-search-chosen"       // Chosen item from the result list
+const CSS_WITH_METADATA = "st-cogstack-concept-search-with-meta"  // Class for the content wrapper when metadat is shown
+const CSS_METADATA = "st-cogstack-concept-search-meta"            // Metadata container next to results
+const CSS_METADATA_ITEM = "st-cogstack-concept-search-meta-item"  // Metadata item
+const CSS_METADATA_EMPTY = "st-cogstack-concept-search-meta-empty"  // Metadata placeholder item
 
 
 
@@ -33,9 +37,17 @@ class Concept {
   constructor(code, label, children, metadata, properties) {
     this.code = code
     this.label = label
-    this.children = children
-    this.metadata = metadata
+    this.children = children ?? []
+    this.metadata = metadata ?? {}
     this.properties = properties ?? {}
+  }
+
+  static fromDict(c) {
+    let children = undefined
+    if (Array.isArray(c.children)) {
+      children = c.children.map(Concept.fromDict)
+    }
+    return new Concept(c.code, c.label, children, c.metadata, c.properties)
   }
 }
 
@@ -98,6 +110,7 @@ let _currentListItem = null     // Result item currently highlighted
 let _hoveredListItem = null     // Result item currently hovered (helper to
                                 // prevent search input blur event when an item
                                 // is clicked)
+let _showMetadata = false
 
 
 
@@ -119,7 +132,9 @@ _searchInput.placeholder = "Search by code or label"
 _searchInput.ariaLabel = "Search by code or label"
 _searchInput.classList.add("form-control", CSS_SEARCH_INPUT)
 
-const _resultList = document.body.appendChild(document.createElement("ul"))
+const _resultWrapper = document.body.appendChild(document.createElement("div"))
+
+const _resultList = _resultWrapper.appendChild(document.createElement("ul"))
 _resultList.classList.add("list-group", CSS_RESULT_LIST)
 
 const _resultItem = document.createElement("li")
@@ -135,6 +150,19 @@ _chosenItem.classList.add(CSS_CHOSEN_ITEM)
 
 const _chosenLabel = document.createElement("span")
 _chosenItem.appendChild(_chosenLabel)
+
+// Metadata to show next to results
+const _metadataContainer = document.createElement("div")
+_metadataContainer.classList.add(CSS_METADATA)
+
+const _metadataItem = document.createElement("div")
+_metadataItem.classList.add(CSS_METADATA_ITEM)
+_metadataItem.appendChild(document.createElement("div"))
+_metadataItem.appendChild(document.createElement("div"))
+
+const _metadataItemEmpty = document.createElement("div")
+_metadataItemEmpty.classList.add(CSS_METADATA_EMPTY)
+_metadataItemEmpty.textContent = "No details available"
 
 
 /**
@@ -213,20 +241,21 @@ function* findNextResult(searchText, concepts) {
 }
 
 function isListHidden() {
-  return _resultList.style.display == "none"
+  return _resultWrapper.style.display == "none"
 }
 
 function showList() {
-  _resultList.style.display = "block"
+  _resultWrapper.style.removeProperty("display")
   Streamlit.setFrameHeight()
 }
 
 function hideList() {
-  _resultList.style.display = "none"
+  _resultWrapper.style.display = "none"
   Streamlit.setFrameHeight()
 }
 
 function selectListItem(newListItem) {
+  const metadataItems = []
   if (_currentListItem) {
     _currentListItem.classList.remove("active")
     _indexHidden.value = null
@@ -234,8 +263,24 @@ function selectListItem(newListItem) {
   if (newListItem) {
     newListItem.classList.add("active")
     _indexHidden.value = newListItem.dataset.index
+
+    // Collect metadata
+    const concept = _lastResults[newListItem.dataset.index]
+    for (const key in concept.metadata) {
+      const value = concept.metadata[key]
+      if (value || value === false) {
+        const row = _metadataItem.cloneNode(true)
+        row.firstChild.textContent = `${key}:`
+        row.lastChild.textContent = value
+        metadataItems.push(row)
+      }
+    }
+    if (metadataItems.length === 0) {
+      metadataItems.push(_metadataItemEmpty)
+    }
   }
   _currentListItem = newListItem
+  _metadataContainer.replaceChildren(...metadataItems)
 }
 
 function selectNextListItem() {
@@ -394,14 +439,17 @@ function onRender(event) {
 
   // RenderData.args is the JSON dictionary of arguments sent from the
   // Python script.
-  let {concepts} = data.args
+  let {concepts, show_metadata} = data.args
 
   // TODO: Do we need to load concepts on every render?
   //_sourceConcepts = concepts
-  _sourceConcepts = []
-  concepts.forEach(c => {
-    _sourceConcepts.push(new Concept(c.code, c.label, c.children, c.metadata, c.properties))
-  });
+  _sourceConcepts = concepts.map(Concept.fromDict)
+
+  _showMetadata = show_metadata === true
+  if (_showMetadata) {
+    _resultWrapper.appendChild(_metadataContainer)
+    _resultWrapper.classList.add(CSS_WITH_METADATA)
+  }
 
 
   // Maintain compatibility with older versions of Streamlit that don't send
