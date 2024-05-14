@@ -28,9 +28,10 @@ class Modal:
     def is_open(self) -> bool:
         return st.session_state.get(f"{self.key}-opened", False)
 
-    def open(self) -> None:
+    def open(self, rerun_condition: bool = True) -> None:
         st.session_state[f"{self.key}-opened"] = True
-        rerun()
+        if rerun_condition:
+            rerun()
 
     def close(self, rerun_condition: bool = True) -> None:
         st.session_state[f"{self.key}-opened"] = False
@@ -120,9 +121,8 @@ class Modal:
                         f'<h2 class="title">{self.title}</h2>',
                         unsafe_allow_html=True)
             with close_btn:
-                closed = st.button("╳", key=f"{self.key}-close")
-                if closed:
-                    self.close()
+                st.button(
+                    "╳", key=f"{self.key}-close", on_click=self.close(False))
 
         components.html(
             f"""
@@ -135,7 +135,6 @@ class Modal:
                     container = iframe.parentNode.previousSibling;
                     container.classList.add('st-modal');
                     container.dataset.modalKey = '{self.key}';
-                    console.debug(container);
                     
                     // Copy background color from body
                     const contentDiv = container.querySelector('div:first-child > div:first-child');
