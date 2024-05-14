@@ -102,6 +102,7 @@ const MAX_RESULTS = 10
 const KEYS_NAV = ["Up", "ArrowUp", "Down", "ArrowDown", "Enter", "Escape"]
 
 let _sourceConcepts = []        // List of searchable concepts
+let _sourceConceptsIndex = {}   // Searchable concepts indexed by code
 let _lastSearchText = null      // Last text searched for
 let _lastSearchTerms = null     // List of terms used for the last search
 let _lastSelected = null        // Last Concept selected (currently selected)
@@ -127,12 +128,14 @@ let _showMetadata = false
  * (They could also be defined directly in index.html.)
  */
 const _searchInput = document.body.appendChild(document.createElement("input"))
+const _searchInputPlaceholder = "Search by code or label"
 _searchInput.type = "search"
-_searchInput.placeholder = "Search by code or label"
-_searchInput.ariaLabel = "Search by code or label"
+//_searchInput.placeholder = _searchInputPlaceholder
+_searchInput.ariaLabel = _searchInputPlaceholder
 _searchInput.classList.add("form-control", CSS_SEARCH_INPUT)
 
 const _resultWrapper = document.body.appendChild(document.createElement("div"))
+_resultWrapper.classList.add("d-none")
 
 const _resultList = _resultWrapper.appendChild(document.createElement("ul"))
 _resultList.classList.add("list-group", CSS_RESULT_LIST)
@@ -175,6 +178,18 @@ _metadataItemEmpty.textContent = "No details available"
  */
 function getStreamlitValue() {
   return new SearchResult(_lastSearchText, _lastSearchTerms, _lastResults, _lastSelected)
+}
+
+/**
+ * Helper to add a Concept and all it's children to the index.
+ *
+ * @param {{code: string, children: any[]}} concept Concept to index
+ */
+function indexConcept(concept) {
+  _sourceConceptsIndex[concept.code] = concept
+  if (concept.children) {
+    concept.children.forEach(indexConcept)
+  }
 }
 
 /**
@@ -241,16 +256,16 @@ function* findNextResult(searchText, concepts) {
 }
 
 function isListHidden() {
-  return _resultWrapper.style.display == "none"
+  return _resultWrapper.classList.contains("d-none")
 }
 
 function showList() {
-  _resultWrapper.style.removeProperty("display")
+  _resultWrapper.classList.remove("d-none")
   Streamlit.setFrameHeight()
 }
 
 function hideList() {
-  _resultWrapper.style.display = "none"
+  _resultWrapper.classList.add("d-none")
   Streamlit.setFrameHeight()
 }
 
@@ -318,6 +333,57 @@ function confirmCurrentItem() {
   }
 }
 
+/**
+ *
+ * @param {String} searchText Text to search
+ * @param {Function} resultGeneratorCallback Function that receives a search
+ *  text and returns a generator of Concepts, with each item being the next
+ *  search result to display.
+ */
+function processSearch(searchText, resultGeneratorCallback) {
+  _lastSearchText = searchText
+  _lastSearchTerms = _lastSearchText.split(" ")
+  _lastResults = []
+  _indexHidden.value = null
+
+  const resultListItems = []
+
+  if (_lastSearchText.length >= MIN_SEARCH_LEN) {
+    const gen = resultGeneratorCallback(_lastSearchText)
+    let nextResult = gen.next()
+
+    while (!nextResult.done && _lastResults.length < MAX_RESULTS) {
+      _lastResults.push(nextResult.value)
+      // Create result DOM elements
+      resultListItems.push(createResultItem(nextResult.value, _lastResults.length - 1))
+      nextResult = gen.next()
+    }
+  }
+
+  _resultList.replaceChildren(...resultListItems)
+
+  // Select first item by default
+  selectListItem(_resultList.firstChild)
+}
+
+/**
+ * Loads a `SearchResult` into this widget's state.
+ *
+ * @param {SearchResult} searchResult A SearchResult previously returned to Streamlit,
+ *  to load this widget's state.
+ */
+async function loadSearchResults(searchResult) {
+  _searchInput.value = searchResult.searchText
+  // _searchInput.dispatchEvent(new Event('input'))
+  function* gen() {
+    for (const c of searchResult.results) {
+      yield _sourceConceptsIndex[c.code]
+    }
+    return
+  }
+  processSearch(_searchInput.value, gen)
+}
+
 
 /*
  * Event handling
@@ -327,29 +393,11 @@ function confirmCurrentItem() {
 _searchInput.oninput = () => {
   // Handle search text change
   if (_lastSearchText == null || _searchInput.value !== _lastSearchText) {
-    _lastSearchText = _searchInput.value
-    _lastSearchTerms = _lastSearchText.split(" ")
-    _lastResults = []
-    _indexHidden.value = null
-
-    const resultListItems = []
-
-    if (_lastSearchText.length >= MIN_SEARCH_LEN) {
-      const gen = findNextResult(_lastSearchText, _sourceConcepts)
-      let nextResult = gen.next()
-
-      while (!nextResult.done && _lastResults.length < MAX_RESULTS) {
-        _lastResults.push(nextResult.value)
-        // Create result DOM elements
-        resultListItems.push(createResultItem(nextResult.value, _lastResults.length - 1))
-        nextResult = gen.next()
-      }
-    }
-
-    _resultList.replaceChildren(...resultListItems)
-
-    // Select first item by default
-    selectListItem(_resultList.firstChild)
+    // Process search text, using a generator that returns each time the next
+    // result found
+    processSearch(
+      _searchInput.value,
+      (searchText) => findNextResult(searchText, _sourceConcepts))
 
     Streamlit.setFrameHeight()
   }
@@ -442,8 +490,12 @@ function onRender(event) {
   let {concepts, show_metadata} = data.args
 
   // TODO: Do we need to load concepts on every render?
-  //_sourceConcepts = concepts
-  _sourceConcepts = concepts.map(Concept.fromDict)
+  _sourceConcepts = []
+  _sourceConceptsIndex = {}
+  concepts.forEach(c => {
+    indexConcept(c)
+    _sourceConcepts.push(Concept.fromDict(c))
+  })
 
   _showMetadata = show_metadata === true
   if (_showMetadata) {
@@ -451,6 +503,15 @@ function onRender(event) {
     _resultWrapper.classList.add(CSS_WITH_METADATA)
   }
 
+  // Load default search results
+  _default = data.args["default"]
+  if (_default) {
+    loadSearchResults(_default)
+  }
+
+  // Set placeholder only after initialising the default value, to avoid the
+  // placeholder being shown for a bit before the default search text is set.
+  _searchInput.placeholder = _searchInputPlaceholder
 
   // Maintain compatibility with older versions of Streamlit that don't send
   // a theme object.

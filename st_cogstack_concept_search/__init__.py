@@ -55,11 +55,12 @@ _component_func = declare_cogstack_component(
 
 def st_cogstack_concept_search(
     concepts: list[dict],
-    show_metadata=False,
-    key=None,
-    on_change: typing.Union[WidgetCallback, None] = None,
-    on_change_args: typing.Union[WidgetArgs, None] = None,
-    on_change_kwargs: typing.Union[WidgetKwargs, None] = None,
+    show_metadata: bool = False,
+    key: typing.Optional[typing.AnyStr] = None,
+    default: typing.Optional[SearchResult] = None,
+    on_change: typing.Optional[WidgetCallback] = None,
+    on_change_args: typing.Optional[WidgetArgs] = None,
+    on_change_kwargs: typing.Optional[WidgetKwargs] = None,
 ) -> SearchResult:
     """st_cogstack_concept_search.
 
@@ -67,10 +68,15 @@ def st_cogstack_concept_search(
     ----------
     concepts: list[dict]
         Hierarchical list of concepts to use as search database
+    show_metadata: bool
+        Whether concept metadata is shown next to search results
     key: str or None
         An optional key that uniquely identifies this component. If this is
         None, and the component's arguments are changed, the component will
         be re-mounted in the Streamlit frontend and lose its current state.
+    default: SearchResult
+        (Optional) Default result object to load the widget's internal state and
+        to be returned in none is available for this component
 
     on_change: WidgetCallback
         (Optional) Callback to be executed after the value for the component
@@ -92,7 +98,7 @@ def st_cogstack_concept_search(
         show_metadata=show_metadata,
         # Streamlit optional parameters
         key=key,
-        default=None,
+        default=default,
 
         on_change_handler=on_change,
         on_change_args=on_change_args,
