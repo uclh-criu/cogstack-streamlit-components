@@ -223,7 +223,9 @@ function getContentByConfig(configVar, label, details) {
  */
 function createEntityNode(start, end, label, details, properties) {
   const entity = _entityElem.cloneNode()
-  entity.textContent = _sourceText.substring(start, end)
+  entity.textContent = _sourceText
+    .substring(start, end)
+    .replace(/(\r|\n)+/g, " ")
   entity.onclick = onEntityClick
   // Entity properties
   if (properties.selected) {
