@@ -40,6 +40,9 @@ class Concept {
     this.children = children ?? []
     this.metadata = metadata ?? {}
     this.properties = properties ?? {}
+
+    this.searchCode = code.toLowerCase()
+    this.searchLabel = label.toLowerCase()
   }
 
   static fromDict(c) {
@@ -220,12 +223,13 @@ function createResultItem(concept, index) {
 /**
  * Returnes whether the search text matches a given `Concept`.
  *
- * @param {String} searchText Text to be matched
+ * @param {String} searchText Text to be matched with codes
+ * @param {String[]} searchTerms Terms in the text to be matched with labels
  * @param {Concept} concept Concept to see if it matches the text
  * @returns True if the concept matches the text, false otherwise.
  */
-function matchConcept(searchText, concept) {
-  return concept.code.startsWith(searchText) || concept.label.includes(searchText)
+function matchConcept(searchText, searchTerms, concept) {
+  return concept.searchCode.startsWith(searchText) || searchTerms.some(t => concept.searchLabel.includes(t))
 }
 
 /**
@@ -235,21 +239,22 @@ function matchConcept(searchText, concept) {
  * first in the given list. If a concept has children, search continues on them
  * before moving to the next sibling concept.
  *
- * @param {String} searchText Text to be matched with concepts
+ * @param {String} searchText Text to be matched with concept codes
+ * @param {String[]} searchTerms Terms to be matched with concept labels
  * @param {Concept[]} concepts List of concepts where the text is searched
  */
-function* findNextResult(searchText, concepts) {
+function* findNextResult(searchText, searchTerms, concepts) {
   for (let i = 0; i < concepts.length; i++) {
     const concept = concepts[i]
 
     // Search in parent
-    if (matchConcept(searchText, concept)) {
+    if (matchConcept(searchText, searchTerms, concept)) {
       yield concept;
     }
 
     // Search in children
     if ((concept.children ?? []).length > 0) {
-      yield* findNextResult(searchText, concept.children)
+      yield* findNextResult(searchText, searchTerms, concept.children)
     }
   }
   return
@@ -336,20 +341,21 @@ function confirmCurrentItem() {
 /**
  *
  * @param {String} searchText Text to search
- * @param {Function} resultGeneratorCallback Function that receives a search
- *  text and returns a generator of Concepts, with each item being the next
- *  search result to display.
+ * @param {(text: string, terms: string[]) => Generator<Concept>} resultGeneratorCallback
+ *  Function that receives the full search text, the search terms (each word in
+ *  the text of at least 2 characters) and returns a generator of Concepts, with
+ *  each item being the next search result to display.
  */
 function processSearch(searchText, resultGeneratorCallback) {
-  _lastSearchText = searchText
-  _lastSearchTerms = _lastSearchText.split(" ")
+  _lastSearchText = searchText.toLowerCase()
+  _lastSearchTerms = _lastSearchText.split(" ").filter(s => s.length >= MIN_SEARCH_LEN)
   _lastResults = []
   _indexHidden.value = null
 
   const resultListItems = []
 
   if (_lastSearchText.length >= MIN_SEARCH_LEN) {
-    const gen = resultGeneratorCallback(_lastSearchText)
+    const gen = resultGeneratorCallback(_lastSearchText, _lastSearchTerms)
     let nextResult = gen.next()
 
     while (!nextResult.done && _lastResults.length < MAX_RESULTS) {
@@ -397,7 +403,7 @@ _searchInput.oninput = () => {
     // result found
     processSearch(
       _searchInput.value,
-      (searchText) => findNextResult(searchText, _sourceConcepts))
+      (searchText, searchTerms) => findNextResult(searchText, searchTerms, _sourceConcepts))
 
     Streamlit.setFrameHeight()
   }
@@ -493,8 +499,9 @@ function onRender(event) {
   _sourceConcepts = []
   _sourceConceptsIndex = {}
   concepts.forEach(c => {
-    indexConcept(c)
-    _sourceConcepts.push(Concept.fromDict(c))
+    const concept = Concept.fromDict(c)
+    indexConcept(concept)
+    _sourceConcepts.push(concept)
   })
 
   _showMetadata = show_metadata === true
