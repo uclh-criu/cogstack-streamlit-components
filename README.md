@@ -5,6 +5,11 @@ developed for Cogstack.
 
 ## Usage
 
+### Streamlit version 
+The original version only support streamlit version 1.29.0 to 1.33.0 (tagged as v1.33.0)
+
+Please visit https://github.com/uclh-criu/cogstack-streamlit-components/tags for other supported version
+
 ### Submodule
 This repository can be included in other projects as a submodule. For more
 details, see: https://git-scm.com/book/en/v2/Git-Tools-Submodules.
@@ -20,3 +25,5 @@ from components.st_cogstack_annotate import st_cogstack_annotate
 
 annotations = st_cogstack_annotate("label", "Lorem ispum", {})
 ```
+
+

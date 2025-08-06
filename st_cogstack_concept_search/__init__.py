@@ -100,7 +100,7 @@ def st_cogstack_concept_search(
         key=key,
         default=default,
 
-        on_change_handler=on_change,
+        on_change=on_change,
         on_change_args=on_change_args,
         on_change_kwargs=on_change_kwargs,
     )

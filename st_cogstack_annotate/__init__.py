@@ -77,7 +77,7 @@ def st_cogstack_annotate(label, text, entities, label_details=None,
         key=key,
         default=entities,
 
-        on_change_handler=on_change,
+        on_change=on_change,
         on_change_args=on_change_args,
         on_change_kwargs=on_change_kwargs,
     )
