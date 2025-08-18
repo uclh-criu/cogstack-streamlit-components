@@ -19,6 +19,11 @@ You can clone the repository into a new folder `components` in your project with
 git submodule add https://github.com/uclh-criu/cogstack-streamlit-components components
 ```
 
+Please check out the submodule version v1.33.0
+```
+git checkout v1.33.0
+```
+
 Then, import it as a Python module and use it!
 ```
 from components.st_cogstack_annotate import st_cogstack_annotate
