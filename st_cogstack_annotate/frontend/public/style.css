@@ -37,12 +37,12 @@
 /* Selected entity */
 .st-cogstack-annotate-entity.selected {
   color: #111111;
-  background-color: #FF4B4B;
-  border-bottom: 2px solid #D73434;
+  background-color: #f5e642;
+  border-bottom: 2px solid #d1c63d;
 }
 
 .st-cogstack-annotate-entity.selected .st-cogstack-annotate-badge {
-  border-left-color: #FFA1A1;
+  border-left-color: #f7f1a8;
 }
 
 /* Tooltip wrapper: Defines position respectively to the container entity div */
