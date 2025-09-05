@@ -302,7 +302,7 @@ def declare_cogstack_component(
     component_name = f"{module_name}.{name}"
 
     # Create our component object, and register it.
-    component = CustomComponent(
+    component = CogstackComponent(
         name=component_name, path=path, url=url, module_name=module_name
     )
     # the ctx can be None if a custom component script is run outside of Streamlit, e.g. via 'python ...'
